@@ -12,6 +12,7 @@ class MainActivity : AppCompatActivity() {
 
         val btnIrCategorias = findViewById<Button>(R.id.btnIrCategorias)
         val btnIrTareas = findViewById<Button>(R.id.btnIrTareas)
+        val btnIrEventos = findViewById<Button>(R.id.btnIrEventos) // Nuevo botón
 
         btnIrCategorias.setOnClickListener {
             val intent = Intent(this, CategoriasActivity::class.java)
@@ -20,6 +21,12 @@ class MainActivity : AppCompatActivity() {
 
         btnIrTareas.setOnClickListener {
             val intent = Intent(this, TareasActivity::class.java)
+            startActivity(intent)
+        }
+
+        // Lógica para abrir la pantalla de eventos
+        btnIrEventos.setOnClickListener {
+            val intent = Intent(this, EventosActivity::class.java)
             startActivity(intent)
         }
     }

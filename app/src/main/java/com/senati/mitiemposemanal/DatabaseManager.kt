@@ -135,4 +135,121 @@ class DatabaseManager(context: Context) {
         val db = dbHelper.writableDatabase
         return db.delete(DatabaseHelper.TABLE_TASKS, "${DatabaseHelper.COLUMN_TASK_NAME} = ?", arrayOf(nombre)) > 0
     }
+    // ==========================================
+    //        EVENTOS Y BÚSQUEDA (SPRINT 2)
+    // ==========================================
+
+    // HU-03: Buscar tareas por coincidencia de texto
+    fun buscarTareasPorNombre(texto: String): List<Tarea> {
+        val lista = mutableListOf<Tarea>()
+        val db = dbHelper.readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT * FROM ${DatabaseHelper.TABLE_TASKS} WHERE ${DatabaseHelper.COLUMN_TASK_NAME} LIKE ? ORDER BY ${DatabaseHelper.COLUMN_TASK_NAME} ASC",
+            arrayOf("%$texto%")
+        )
+        if (cursor.moveToFirst()) {
+            do {
+                val id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_TASK_ID))
+                val nombre = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_TASK_NAME))
+                val catId = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_TASK_CATEGORY_ID))
+                lista.add(Tarea(id = id, nombre = nombre, categoriaId = catId))
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return lista
+    }
+
+    // HU-04: Buscar tarea exacta para saber si ya existe antes de crearla
+    fun obtenerTareaPorNombreExacto(nombre: String): Tarea? {
+        val db = dbHelper.readableDatabase
+        val cursor = db.rawQuery(
+            "SELECT * FROM ${DatabaseHelper.TABLE_TASKS} WHERE ${DatabaseHelper.COLUMN_TASK_NAME} = ?",
+            arrayOf(nombre)
+        )
+        var tarea: Tarea? = null
+        if (cursor.moveToFirst()) {
+            val id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_TASK_ID))
+            val catId = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_TASK_CATEGORY_ID))
+            tarea = Tarea(id = id, nombre = nombre, categoriaId = catId)
+        }
+        cursor.close()
+        return tarea
+    }
+
+    // HU-05: Iniciar un nuevo evento
+    fun iniciarEvento(tareaId: Int, inicio: String): Boolean {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(DatabaseHelper.COLUMN_EVENT_TASK_ID, tareaId)
+            put(DatabaseHelper.COLUMN_EVENT_START, inicio)
+            // 'fin' y 'duracion' se quedan nulos automáticamente hasta que se finalice
+        }
+        return db.insert(DatabaseHelper.TABLE_EVENTS, null, values) != -1L
+    }
+
+    // HU-05: Saber si hay un evento activo (donde la fecha de fin es nula)
+    fun obtenerEventoEnCurso(): Evento? {
+        val db = dbHelper.readableDatabase
+        val query = """
+            SELECT e.${DatabaseHelper.COLUMN_EVENT_ID}, e.${DatabaseHelper.COLUMN_EVENT_TASK_ID}, 
+                   t.${DatabaseHelper.COLUMN_TASK_NAME}, c.${DatabaseHelper.COLUMN_CATEGORY_NAME}, 
+                   e.${DatabaseHelper.COLUMN_EVENT_START}
+            FROM ${DatabaseHelper.TABLE_EVENTS} e
+            INNER JOIN ${DatabaseHelper.TABLE_TASKS} t ON e.${DatabaseHelper.COLUMN_EVENT_TASK_ID} = t.${DatabaseHelper.COLUMN_TASK_ID}
+            INNER JOIN ${DatabaseHelper.TABLE_CATEGORIES} c ON t.${DatabaseHelper.COLUMN_TASK_CATEGORY_ID} = c.${DatabaseHelper.COLUMN_CATEGORY_ID}
+            WHERE e.${DatabaseHelper.COLUMN_EVENT_END} IS NULL
+        """.trimIndent()
+
+        val cursor = db.rawQuery(query, null)
+        var evento: Evento? = null
+        if (cursor.moveToFirst()) {
+            val id = cursor.getInt(0)
+            val tareaId = cursor.getInt(1)
+            val nombreTarea = cursor.getString(2)
+            val nombreCategoria = cursor.getString(3)
+            val inicio = cursor.getString(4)
+            evento = Evento(id = id, tareaId = tareaId, nombreTarea = nombreTarea, categoriaTarea = nombreCategoria, inicio = inicio)
+        }
+        cursor.close()
+        return evento
+    }
+
+    // HU-05: Finalizar el evento calculando y guardando su fin y duración
+    fun finalizarEvento(eventoId: Int, fin: String, duracion: String): Boolean {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put(DatabaseHelper.COLUMN_EVENT_END, fin)
+            put(DatabaseHelper.COLUMN_EVENT_DURATION, duracion)
+        }
+        return db.update(DatabaseHelper.TABLE_EVENTS, values, "${DatabaseHelper.COLUMN_EVENT_ID} = ?", arrayOf(eventoId.toString())) > 0
+    }
+
+    // Mostrar la lista del historial de eventos completados
+    fun obtenerHistorialEventos(): List<String> {
+        val lista = mutableListOf<String>()
+        val db = dbHelper.readableDatabase
+        val query = """
+            SELECT t.${DatabaseHelper.COLUMN_TASK_NAME}, c.${DatabaseHelper.COLUMN_CATEGORY_NAME}, 
+                   e.${DatabaseHelper.COLUMN_EVENT_START}, e.${DatabaseHelper.COLUMN_EVENT_END}, e.${DatabaseHelper.COLUMN_EVENT_DURATION}
+            FROM ${DatabaseHelper.TABLE_EVENTS} e
+            INNER JOIN ${DatabaseHelper.TABLE_TASKS} t ON e.${DatabaseHelper.COLUMN_EVENT_TASK_ID} = t.${DatabaseHelper.COLUMN_TASK_ID}
+            INNER JOIN ${DatabaseHelper.TABLE_CATEGORIES} c ON t.${DatabaseHelper.COLUMN_TASK_CATEGORY_ID} = c.${DatabaseHelper.COLUMN_CATEGORY_ID}
+            WHERE e.${DatabaseHelper.COLUMN_EVENT_END} IS NOT NULL
+            ORDER BY e.${DatabaseHelper.COLUMN_EVENT_ID} DESC
+        """.trimIndent()
+
+        val cursor = db.rawQuery(query, null)
+        if (cursor.moveToFirst()) {
+            do {
+                val tarea = cursor.getString(0)
+                val categoria = cursor.getString(1)
+                val inicio = cursor.getString(2)
+                val fin = cursor.getString(3)
+                val dur = cursor.getString(4)
+                lista.add("$tarea ($categoria)\n▶ $inicio  |  ⏹ $fin\n⏱ Duración: $dur")
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return lista
+    }
 }

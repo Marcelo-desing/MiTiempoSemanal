@@ -9,8 +9,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "MiTiempoSemanal.db"
-        // ¡Subimos la versión a 2 para que Android aplique los cambios!
-        private const val DATABASE_VERSION = 2
+        // ¡Subimos la versión a 3 para agregar Eventos sin borrar lo anterior!
+        private const val DATABASE_VERSION = 3
 
         const val TABLE_CATEGORIES = "categorias"
         const val COLUMN_CATEGORY_ID = "id"
@@ -20,10 +20,17 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val COLUMN_TASK_ID = "id"
         const val COLUMN_TASK_NAME = "nombre"
         const val COLUMN_TASK_CATEGORY_ID = "categoria_id"
-        // Nuevas columnas para fecha y hora
         const val COLUMN_TASK_DATE = "fecha"
         const val COLUMN_TASK_TIME_START = "hora_inicio"
         const val COLUMN_TASK_TIME_END = "hora_fin"
+
+        // NUEVA TABLA: Eventos
+        const val TABLE_EVENTS = "eventos"
+        const val COLUMN_EVENT_ID = "id"
+        const val COLUMN_EVENT_TASK_ID = "tarea_id"
+        const val COLUMN_EVENT_START = "inicio"
+        const val COLUMN_EVENT_END = "fin"
+        const val COLUMN_EVENT_DURATION = "duracion"
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -37,7 +44,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + "$COLUMN_CATEGORY_NAME TEXT UNIQUE NOT NULL)")
         db.execSQL(createCategoriesTable)
 
-        // Tabla de tareas actualizada con fecha y horas
         val createTasksTable = ("CREATE TABLE $TABLE_TASKS ("
                 + "$COLUMN_TASK_ID INTEGER PRIMARY KEY AUTOINCREMENT, "
                 + "$COLUMN_TASK_NAME TEXT UNIQUE NOT NULL, "
@@ -48,7 +54,21 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + "FOREIGN KEY($COLUMN_TASK_CATEGORY_ID) REFERENCES $TABLE_CATEGORIES($COLUMN_CATEGORY_ID))")
         db.execSQL(createTasksTable)
 
+        // Creamos la tabla de eventos por si alguien instala la app desde cero
+        crearTablaEventos(db)
+
         insertarCategoriasPorDefecto(db)
+    }
+
+    private fun crearTablaEventos(db: SQLiteDatabase) {
+        val createEventsTable = ("CREATE TABLE IF NOT EXISTS $TABLE_EVENTS ("
+                + "$COLUMN_EVENT_ID INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "$COLUMN_EVENT_TASK_ID INTEGER NOT NULL, "
+                + "$COLUMN_EVENT_START TEXT, "
+                + "$COLUMN_EVENT_END TEXT, "
+                + "$COLUMN_EVENT_DURATION TEXT, "
+                + "FOREIGN KEY($COLUMN_EVENT_TASK_ID) REFERENCES $TABLE_TASKS($COLUMN_TASK_ID))")
+        db.execSQL(createEventsTable)
     }
 
     private fun insertarCategoriasPorDefecto(db: SQLiteDatabase) {
@@ -61,9 +81,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Al detectar que la versión pasó de 1 a 2, borra las tablas viejas y crea las nuevas
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_TASKS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_CATEGORIES")
-        onCreate(db)
+        // Si actualizamos desde la versión 2 a la 3, solo creamos la tabla Eventos
+        // Así no perdemos los datos del Sprint 1
+        if (oldVersion < 3) {
+            crearTablaEventos(db)
+        }
     }
 }
