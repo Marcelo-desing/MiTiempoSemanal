@@ -1,18 +1,26 @@
 package com.senati.mitiemposemanal
 
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ProgressBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import java.time.DayOfWeek
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
+import java.util.Locale
 
 class EventosActivity : AppCompatActivity() {
 
@@ -23,9 +31,13 @@ class EventosActivity : AppCompatActivity() {
     private lateinit var btnFinalizar: Button
     private lateinit var lvEventos: ListView
 
+    // Contenedores del Panel del Sprint 3
+    private lateinit var tvRangoSemana: TextView
+    private lateinit var llPanelEstadisticas: LinearLayout
+
     private var eventoEnCurso: Evento? = null
-    // Formato exacto de tiempo exigido por la rúbrica para cálculos futuros
     private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+    private val dateSoloFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,28 +49,22 @@ class EventosActivity : AppCompatActivity() {
         btnIniciar = findViewById(R.id.btnIniciar)
         btnFinalizar = findViewById(R.id.btnFinalizar)
         lvEventos = findViewById(R.id.lvEventos)
+        tvRangoSemana = findViewById(R.id.tvRangoSemana)
+        llPanelEstadisticas = findViewById(R.id.llPanelEstadisticas)
 
-        // Cargamos los datos al abrir la pantalla
         actualizarHistorial()
-        verificarEventoActivo() // HU-05: Si cierras y abres la app, esto detecta si hay algo corriendo
+        verificarEventoActivo()
         configurarBuscador()
+        actualizarPanelEstadisticas() // HU-06: Cargamos el panel al iniciar
 
         btnIniciar.setOnClickListener {
             val textoEscrito = actvTareaNombre.text.toString().trim()
+            if (textoEscrito.isEmpty()) return@setOnClickListener
 
-            if (textoEscrito.isEmpty()) {
-                Toast.makeText(this, "Escribe el nombre de una tarea", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // Verificamos si la tarea ya existe en la base de datos
             val tareaExiste = dbManager.obtenerTareaPorNombreExacto(textoEscrito)
-
             if (tareaExiste != null) {
-                // Si existe, iniciamos el evento directamente
                 registrarInicio(tareaExiste.id)
             } else {
-                // HU-04: Si no existe, lanzamos la alerta para crearla sin cambiar de pantalla
                 mostrarDialogoCrearTarea(textoEscrito)
             }
         }
@@ -68,34 +74,94 @@ class EventosActivity : AppCompatActivity() {
         }
     }
 
+    // ==========================================
+    //           PANEL SPRINT 3 (HU-06)
+    // ==========================================
+
+    private fun obtenerRangoSemana(fecha: LocalDate): String {
+        // Regla: La semana va de lunes a domingo
+        val lunes = fecha.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val domingo = fecha.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+        return "${lunes.format(dateSoloFormatter)}-${domingo.format(dateSoloFormatter)}"
+    }
+
+    private fun actualizarPanelEstadisticas() {
+        llPanelEstadisticas.removeAllViews() // Vaciamos el contenedor
+
+        val hoy = LocalDate.now()
+        val semanaStr = obtenerRangoSemana(hoy)
+        tvRangoSemana.text = "Semana $semanaStr"
+
+        // Obtenemos los minutos agrupados desde SQL
+        val datosSemana = dbManager.obtenerMinutosPorCategoriaEnSemana(semanaStr)
+        val categoriasTodas = dbManager.obtenerCategorias()
+
+        var minutosRegistradosTotales = 0
+
+        val colores = listOf(Color.parseColor("#4CAF50"), Color.parseColor("#2196F3"), Color.parseColor("#FF9800"), Color.parseColor("#9C27B0"), Color.parseColor("#E91E63"))
+
+        // Creamos una fila por CADA categoría que exista (incluso si está en 0)
+        categoriasTodas.forEachIndexed { index, categoria ->
+            val minsCategoria = datosSemana[categoria.nombre] ?: 0
+            minutosRegistradosTotales += minsCategoria
+
+            val horasDec = minsCategoria / 60.0
+            val pct = (minsCategoria / 10080.0) * 100.0 // Fórmula de la rúbrica
+
+            crearFilaGrafica(categoria.nombre, horasDec, pct, colores[index % colores.size])
+        }
+
+        // Fila adicional "Sin registrar" exigida en la rúbrica
+        val minutosSinRegistrar = 10080 - minutosRegistradosTotales
+        val horasSinReg = minutosSinRegistrar / 60.0
+        val pctSinReg = (minutosSinRegistrar / 10080.0) * 100.0
+
+        crearFilaGrafica("Sin registrar", horasSinReg, pctSinReg, Color.parseColor("#B0BEC5"))
+    }
+
+    private fun crearFilaGrafica(nombre: String, horas: Double, porcentaje: Double, color: Int) {
+        // Creamos el texto de la fila (Ej: "Estudio: 21.0h (12.5%)")
+        val tv = TextView(this).apply {
+            text = String.format(Locale.US, "%s: %.1fh (%.1f%%)", nombre, horas, porcentaje)
+            textSize = 14f
+            setTextColor(Color.DKGRAY)
+            setPadding(0, 8, 0, 4)
+        }
+
+        // Creamos la barra de progreso
+        val progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000 // Multiplicamos por 10 para soportar un decimal en la barra (12.5% = 125)
+            progress = (porcentaje * 10).toInt()
+            progressTintList = ColorStateList.valueOf(color)
+        }
+
+        llPanelEstadisticas.addView(tv)
+        llPanelEstadisticas.addView(progressBar)
+    }
+
+    // ==========================================
+    //           EVENTOS (SPRINT 2 y 3)
+    // ==========================================
+
     private fun configurarBuscador() {
-        // HU-03: Alimentamos el buscador con las tareas. El XML ya se encarga de buscar a partir de 2 letras.
         val listaCompleta = dbManager.obtenerTareasConCategoria().map { it.split("\n")[0] }
         val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, listaCompleta)
         actvTareaNombre.setAdapter(adapter)
 
-        // HU-03: Al elegir una tarea de la lista, mostramos su categoría en un mensaje Toast
         actvTareaNombre.setOnItemClickListener { _, _, position, _ ->
             val seleccion = adapter.getItem(position) ?: ""
             val partes = seleccion.split(" - ")
             if (partes.size > 1) {
-                val nombre = partes[0]
-                val categoria = partes[1]
-
-                // Limpiamos el texto para dejar solo el nombre y que el botón Iniciar funcione bien
-                actvTareaNombre.setText(nombre)
-                actvTareaNombre.setSelection(nombre.length) // Pone el cursor al final
-                Toast.makeText(this, "Categoría: $categoria", Toast.LENGTH_SHORT).show()
+                actvTareaNombre.setText(partes[0])
+                actvTareaNombre.setSelection(partes[0].length)
+                Toast.makeText(this, "Categoría: ${partes[1]}", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     private fun mostrarDialogoCrearTarea(nombreTarea: String) {
         val categorias = dbManager.obtenerCategorias()
-        if (categorias.isEmpty()) {
-            Toast.makeText(this, "No hay categorías disponibles. Crea una en la pantalla principal.", Toast.LENGTH_LONG).show()
-            return
-        }
+        if (categorias.isEmpty()) return
 
         val spinner = Spinner(this)
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, categorias)
@@ -104,18 +170,13 @@ class EventosActivity : AppCompatActivity() {
 
         AlertDialog.Builder(this)
             .setTitle("Nueva Tarea")
-            .setMessage("La tarea '$nombreTarea' no existe. Elige su categoría para crearla:")
+            .setMessage("La tarea '$nombreTarea' no existe. Elige su categoría:")
             .setView(spinner)
             .setPositiveButton("Crear e Iniciar") { _, _ ->
                 val categoriaSel = spinner.selectedItem as Categoria
-
-                // Creamos la tarea (le pasamos strings vacíos a la fecha/hora del Sprint 1)
-                val exito = dbManager.agregarTarea(nombreTarea, categoriaSel.id, "", "", "")
-                if (exito) {
-                    Toast.makeText(this, "Tarea creada con éxito", Toast.LENGTH_SHORT).show()
-                    val nuevaTarea = dbManager.obtenerTareaPorNombreExacto(nombreTarea)
-                    nuevaTarea?.let { registrarInicio(it.id) }
-                    configurarBuscador() // Refrescamos el buscador con la nueva tarea
+                if (dbManager.agregarTarea(nombreTarea, categoriaSel.id, "", "", "")) {
+                    dbManager.obtenerTareaPorNombreExacto(nombreTarea)?.let { registrarInicio(it.id) }
+                    configurarBuscador()
                 }
             }
             .setNegativeButton("Cancelar", null)
@@ -123,12 +184,10 @@ class EventosActivity : AppCompatActivity() {
     }
 
     private fun registrarInicio(tareaId: Int) {
-        // HU-05: Guardamos la fecha y hora completa del celular usando LocalDateTime
         val ahora = LocalDateTime.now().format(formatter)
         dbManager.iniciarEvento(tareaId, ahora)
         actvTareaNombre.text.clear()
-        verificarEventoActivo() // Bloquea los botones automáticamente
-        Toast.makeText(this, "Evento iniciado", Toast.LENGTH_SHORT).show()
+        verificarEventoActivo()
     }
 
     private fun finalizarEventoActual() {
@@ -136,34 +195,34 @@ class EventosActivity : AppCompatActivity() {
             val ahora = LocalDateTime.now()
             val stringFin = ahora.format(formatter)
 
-            // HU-05: Parseamos el inicio para calcular cuánto tiempo pasó (Duration)
             val inicioDate = LocalDateTime.parse(evento.inicio, formatter)
             val duracionMilis = Duration.between(inicioDate, ahora).toMillis()
+            val duracionMinutosReales = (duracionMilis / 60000).toInt() // Para SQL y el Sprint 3
 
-            // Matemática clásica para convertir milisegundos en formato Horas:Minutos:Segundos
             val segundosTotales = duracionMilis / 1000
             val horas = segundosTotales / 3600
             val minutos = (segundosTotales % 3600) / 60
             val segundos = segundosTotales % 60
-            val stringDuracion = String.format("%02d:%02d:%02d", horas, minutos, segundos)
+            val stringDuracion = String.format(Locale.US, "%02d:%02d:%02d", horas, minutos, segundos)
 
-            dbManager.finalizarEvento(evento.id, stringFin, stringDuracion)
-            Toast.makeText(this, "Terminado. Tiempo invertido: $stringDuracion", Toast.LENGTH_LONG).show()
+            // Guardamos el evento usando la semana del INICIO (como dice la rúbrica)
+            val semanaDelEvento = obtenerRangoSemana(inicioDate.toLocalDate())
 
-            verificarEventoActivo() // Libera los botones de nuevo
-            actualizarHistorial()   // Actualiza la lista de abajo
+            dbManager.finalizarEvento(evento.id, stringFin, stringDuracion, semanaDelEvento, duracionMinutosReales)
+
+            verificarEventoActivo()
+            actualizarHistorial()
+            actualizarPanelEstadisticas() // HU-06: El panel se actualiza de inmediato
         }
     }
 
     private fun verificarEventoActivo() {
         eventoEnCurso = dbManager.obtenerEventoEnCurso()
-
-        // HU-05: Solo puede haber un evento a la vez. Controlamos la interfaz gráfica:
         if (eventoEnCurso != null) {
             tvEventoActual.text = "🔴 EN CURSO: ${eventoEnCurso?.nombreTarea}\n🕒 Inicio: ${eventoEnCurso?.inicio}"
             btnIniciar.isEnabled = false
             btnFinalizar.isEnabled = true
-            actvTareaNombre.isEnabled = false // Bloqueamos el buscador mientras trabajas
+            actvTareaNombre.isEnabled = false
         } else {
             tvEventoActual.text = "No hay ningún evento en curso."
             btnIniciar.isEnabled = true
@@ -173,8 +232,7 @@ class EventosActivity : AppCompatActivity() {
     }
 
     private fun actualizarHistorial() {
-        val historial = dbManager.obtenerHistorialEventos()
-        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, historial)
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, dbManager.obtenerHistorialEventos())
         lvEventos.adapter = adapter
     }
 }

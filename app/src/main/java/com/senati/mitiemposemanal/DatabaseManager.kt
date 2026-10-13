@@ -214,12 +214,14 @@ class DatabaseManager(context: Context) {
         return evento
     }
 
-    // HU-05: Finalizar el evento calculando y guardando su fin y duración
-    fun finalizarEvento(eventoId: Int, fin: String, duracion: String): Boolean {
+    // HU-05 y HU-06: Finalizar el evento guardando su semana y minutos para el cálculo
+    fun finalizarEvento(eventoId: Int, fin: String, duracionTexto: String, semana: String, duracionMinutos: Int): Boolean {
         val db = dbHelper.writableDatabase
         val values = ContentValues().apply {
             put(DatabaseHelper.COLUMN_EVENT_END, fin)
-            put(DatabaseHelper.COLUMN_EVENT_DURATION, duracion)
+            put(DatabaseHelper.COLUMN_EVENT_DURATION, duracionTexto)
+            put(DatabaseHelper.COLUMN_EVENT_WEEK, semana)
+            put(DatabaseHelper.COLUMN_EVENT_DURATION_MINS, duracionMinutos)
         }
         return db.update(DatabaseHelper.TABLE_EVENTS, values, "${DatabaseHelper.COLUMN_EVENT_ID} = ?", arrayOf(eventoId.toString())) > 0
     }
@@ -251,5 +253,35 @@ class DatabaseManager(context: Context) {
         }
         cursor.close()
         return lista
+    }
+    // ==========================================
+    //        ESTADÍSTICAS (SPRINT 3)
+    // ==========================================
+
+    // HU-06: Obtener la suma total de minutos por categoría en una semana específica
+    fun obtenerMinutosPorCategoriaEnSemana(semana: String): Map<String, Int> {
+        val resultado = mutableMapOf<String, Int>()
+        val db = dbHelper.readableDatabase
+
+        // Consulta SQL con SUM y GROUP BY exigida en la rúbrica
+        val query = """
+            SELECT c.${DatabaseHelper.COLUMN_CATEGORY_NAME}, SUM(e.${DatabaseHelper.COLUMN_EVENT_DURATION_MINS}) 
+            FROM ${DatabaseHelper.TABLE_EVENTS} e
+            INNER JOIN ${DatabaseHelper.TABLE_TASKS} t ON e.${DatabaseHelper.COLUMN_EVENT_TASK_ID} = t.${DatabaseHelper.COLUMN_TASK_ID}
+            INNER JOIN ${DatabaseHelper.TABLE_CATEGORIES} c ON t.${DatabaseHelper.COLUMN_TASK_CATEGORY_ID} = c.${DatabaseHelper.COLUMN_CATEGORY_ID}
+            WHERE e.${DatabaseHelper.COLUMN_EVENT_WEEK} = ? AND e.${DatabaseHelper.COLUMN_EVENT_END} IS NOT NULL
+            GROUP BY c.${DatabaseHelper.COLUMN_CATEGORY_NAME}
+        """.trimIndent()
+
+        val cursor = db.rawQuery(query, arrayOf(semana))
+        if (cursor.moveToFirst()) {
+            do {
+                val categoria = cursor.getString(0)
+                val minutosTotales = cursor.getInt(1)
+                resultado[categoria] = minutosTotales
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return resultado
     }
 }

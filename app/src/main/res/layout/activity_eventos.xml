@@ -4,19 +4,53 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="24dp"
+    android:padding="20dp"
     android:background="#F8F9FA">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Registro de Eventos"
-        android:textSize="28sp"
+        android:text="Registro y Estadísticas"
+        android:textSize="24sp"
         android:textStyle="bold"
         android:textColor="#212121"
-        android:layout_marginBottom="24dp"/>
+        android:layout_marginBottom="12dp"/>
 
-    <!-- Caja de texto con sugerencias automáticas -->
+    <!-- NUEVO: Panel del Sprint 3 (HU-06) -->
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="2dp"
+        android:layout_marginBottom="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Título con el rango de fechas de la semana -->
+            <TextView
+                android:id="@+id/tvRangoSemana"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Semana actual..."
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="#3F51B5"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Este es el "contenedor vacío" que exige tu rúbrica -->
+            <LinearLayout
+                android:id="@+id/llPanelEstadisticas"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"/>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- CAJA DE BÚSQUEDA (HU-03) -->
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -26,9 +60,8 @@
         app:boxCornerRadiusTopEnd="12dp"
         app:boxCornerRadiusBottomStart="12dp"
         app:boxCornerRadiusBottomEnd="12dp"
-        android:layout_marginBottom="16dp">
+        android:layout_marginBottom="12dp">
 
-        <!-- completionThreshold="2" hace que busque desde la 2da letra -->
         <AutoCompleteTextView
             android:id="@+id/actvTareaNombre"
             android:layout_width="match_parent"
@@ -37,57 +70,51 @@
             android:completionThreshold="2"/>
     </com.google.android.material.textfield.TextInputLayout>
 
-    <!-- Tarjeta azul que mostrará si hay un evento activo (HU-05) -->
-    <androidx.cardview.widget.CardView
+    <!-- ESTADO DEL EVENTO (HU-05) -->
+    <TextView
+        android:id="@+id/tvEventoActual"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="2dp"
-        app:cardBackgroundColor="#E3F2FD"
-        android:layout_marginBottom="16dp">
+        android:padding="12dp"
+        android:text="No hay ningún evento en curso."
+        android:textColor="#1565C0"
+        android:background="#E3F2FD"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="12dp"/>
 
-        <TextView
-            android:id="@+id/tvEventoActual"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:text="No hay ningún evento en curso."
-            android:textColor="#1565C0"
-            android:textSize="16sp"
-            android:textStyle="bold"/>
-    </androidx.cardview.widget.CardView>
-
+    <!-- BOTONES -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:weightSum="2"
-        android:layout_marginBottom="24dp">
+        android:layout_marginBottom="12dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnIniciar"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="60dp"
+            android:layout_height="55dp"
             android:text="Iniciar"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="10dp"
             app:backgroundTint="#4CAF50"
-            android:layout_marginEnd="8dp"/>
+            android:layout_marginEnd="6dp"/>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnFinalizar"
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="60dp"
+            android:layout_height="55dp"
             android:text="Finalizar"
             android:enabled="false"
             android:insetTop="0dp"
             android:insetBottom="0dp"
             app:cornerRadius="10dp"
             app:backgroundTint="#F44336"
-            android:layout_marginStart="8dp"/>
+            android:layout_marginStart="6dp"/>
     </LinearLayout>
 
     <TextView
@@ -96,21 +123,13 @@
         android:text="Historial de Eventos:"
         android:textSize="14sp"
         android:textColor="#757575"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginBottom="4dp"/>
 
-    <androidx.cardview.widget.CardView
+    <ListView
+        android:id="@+id/lvEventos"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        app:cardCornerRadius="12dp"
-        app:cardElevation="4dp">
-
-        <ListView
-            android:id="@+id/lvEventos"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:divider="#E0E0E0"
-            android:dividerHeight="1dp"
-            android:padding="8dp"/>
-    </androidx.cardview.widget.CardView>
+        android:divider="#E0E0E0"
+        android:dividerHeight="1dp"/>
 </LinearLayout>

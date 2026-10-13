@@ -9,8 +9,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "MiTiempoSemanal.db"
-        // ¡Subimos la versión a 3 para agregar Eventos sin borrar lo anterior!
-        private const val DATABASE_VERSION = 3
+        // ¡Subimos la versión a 4 para el Sprint 3!
+        private const val DATABASE_VERSION = 4
 
         const val TABLE_CATEGORIES = "categorias"
         const val COLUMN_CATEGORY_ID = "id"
@@ -24,13 +24,15 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val COLUMN_TASK_TIME_START = "hora_inicio"
         const val COLUMN_TASK_TIME_END = "hora_fin"
 
-        // NUEVA TABLA: Eventos
         const val TABLE_EVENTS = "eventos"
         const val COLUMN_EVENT_ID = "id"
         const val COLUMN_EVENT_TASK_ID = "tarea_id"
         const val COLUMN_EVENT_START = "inicio"
         const val COLUMN_EVENT_END = "fin"
         const val COLUMN_EVENT_DURATION = "duracion"
+        // NUEVAS COLUMNAS PARA EL SPRINT 3
+        const val COLUMN_EVENT_WEEK = "semana"
+        const val COLUMN_EVENT_DURATION_MINS = "duracion_minutos"
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -54,9 +56,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + "FOREIGN KEY($COLUMN_TASK_CATEGORY_ID) REFERENCES $TABLE_CATEGORIES($COLUMN_CATEGORY_ID))")
         db.execSQL(createTasksTable)
 
-        // Creamos la tabla de eventos por si alguien instala la app desde cero
         crearTablaEventos(db)
-
         insertarCategoriasPorDefecto(db)
     }
 
@@ -67,6 +67,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + "$COLUMN_EVENT_START TEXT, "
                 + "$COLUMN_EVENT_END TEXT, "
                 + "$COLUMN_EVENT_DURATION TEXT, "
+                + "$COLUMN_EVENT_WEEK TEXT, "
+                + "$COLUMN_EVENT_DURATION_MINS INTEGER, "
                 + "FOREIGN KEY($COLUMN_EVENT_TASK_ID) REFERENCES $TABLE_TASKS($COLUMN_TASK_ID))")
         db.execSQL(createEventsTable)
     }
@@ -81,10 +83,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Si actualizamos desde la versión 2 a la 3, solo creamos la tabla Eventos
-        // Así no perdemos los datos del Sprint 1
         if (oldVersion < 3) {
             crearTablaEventos(db)
+        }
+        if (oldVersion < 4) {
+            // Migración: Agregamos las dos columnas nuevas a la tabla existente
+            db.execSQL("ALTER TABLE $TABLE_EVENTS ADD COLUMN $COLUMN_EVENT_WEEK TEXT")
+            db.execSQL("ALTER TABLE $TABLE_EVENTS ADD COLUMN $COLUMN_EVENT_DURATION_MINS INTEGER DEFAULT 0")
         }
     }
 }
