@@ -12,12 +12,12 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Mi Tiempo\nSemanal"
-        android:textSize="36sp"
-        android:textStyle="bold"
-        android:textColor="#212121"
+        android:text="Marcelo Allccarima.\nv1.0.0 (4)"
+        android:textSize="16sp"
         android:textAlignment="center"
-        android:layout_marginBottom="16dp"/>
+        android:textColor="#757575"
+        android:textStyle="italic"
+        android:layout_marginBottom="48dp"/>
 
     <!-- Tu nombre y versión actualizados -->
     <TextView
@@ -27,7 +27,7 @@
         android:textSize="16sp"
         android:textAlignment="center"
         android:textColor="#757575"
-        android:textStyle="italic"  
+        android:textStyle="italic"
         android:layout_marginBottom="48dp"/>
 
     <com.google.android.material.button.MaterialButton
@@ -61,5 +61,17 @@
         app:cornerRadius="16dp"
         app:backgroundTint="#FF4081"
         android:textColor="#FFFFFF" />
+
+    <!-- El nuevo botón de Reportes -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnIrReportes"
+        android:layout_width="match_parent"
+        android:layout_height="65dp"
+        android:text="Ver Reportes Semanales"
+        android:textSize="16sp"
+        app:cornerRadius="16dp"
+        app:backgroundTint="#FF9800"
+        android:textColor="#FFFFFF"
+        android:layout_marginTop="16dp" />
 
 </LinearLayout>

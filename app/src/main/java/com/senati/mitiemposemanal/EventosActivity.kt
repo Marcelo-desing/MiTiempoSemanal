@@ -43,7 +43,14 @@ class EventosActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_eventos)
 
+        // 1. PRIMERO debe estar esta línea obligatoriamente:
         dbManager = DatabaseManager(this)
+
+        // 2. DESPUÉS pegas el código nuevo:
+        val hoy = LocalDate.now()
+        dbManager.generarReportesPendientes(obtenerRangoSemana(hoy))
+
+        // 3. Y luego sigue lo que ya tenías:
         actvTareaNombre = findViewById(R.id.actvTareaNombre)
         tvEventoActual = findViewById(R.id.tvEventoActual)
         btnIniciar = findViewById(R.id.btnIniciar)

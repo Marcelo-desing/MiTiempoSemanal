@@ -3,6 +3,7 @@ package com.senati.mitiemposemanal
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteConstraintException
+import android.database.sqlite.SQLiteDatabase
 
 class DatabaseManager(context: Context) {
     private val dbHelper = DatabaseHelper(context)
@@ -135,6 +136,7 @@ class DatabaseManager(context: Context) {
         val db = dbHelper.writableDatabase
         return db.delete(DatabaseHelper.TABLE_TASKS, "${DatabaseHelper.COLUMN_TASK_NAME} = ?", arrayOf(nombre)) > 0
     }
+
     // ==========================================
     //        EVENTOS Y BÚSQUEDA (SPRINT 2)
     // ==========================================
@@ -254,6 +256,7 @@ class DatabaseManager(context: Context) {
         cursor.close()
         return lista
     }
+
     // ==========================================
     //        ESTADÍSTICAS (SPRINT 3)
     // ==========================================
@@ -283,5 +286,125 @@ class DatabaseManager(context: Context) {
         }
         cursor.close()
         return resultado
+    }
+
+    // ==========================================
+    //      CIERRE Y REPORTES (SPRINT 4)
+    // ==========================================
+
+    // Estructura para enviar los datos a la pantalla visual
+    data class FilaReporte(val categoria: String, val horas: Double, val porcentaje: Double)
+
+    // HU-07: Cerrar semanas automáticamente
+    fun generarReportesPendientes(semanaActual: String) {
+        val db = dbHelper.writableDatabase
+
+        val semanasConEventos = mutableListOf<String>()
+        // AQUÍ ESTÁ LA CORRECCIÓN: Ignoramos los eventos antiguos con semana nula
+        val querySemanas = "SELECT DISTINCT ${DatabaseHelper.COLUMN_EVENT_WEEK} FROM ${DatabaseHelper.TABLE_EVENTS} WHERE ${DatabaseHelper.COLUMN_EVENT_END} IS NOT NULL AND ${DatabaseHelper.COLUMN_EVENT_WEEK} IS NOT NULL"
+        val cursorSemanas = db.rawQuery(querySemanas, null)
+        if (cursorSemanas.moveToFirst()) {
+            do {
+                semanasConEventos.add(cursorSemanas.getString(0))
+            } while (cursorSemanas.moveToNext())
+        }
+        cursorSemanas.close()
+
+        for (semana in semanasConEventos) {
+            if (semana == semanaActual) continue
+
+            val queryExiste = "SELECT COUNT(*) FROM ${DatabaseHelper.TABLE_REPORTS} WHERE ${DatabaseHelper.COLUMN_REPORT_WEEK} = ?"
+            val cursorExiste = db.rawQuery(queryExiste, arrayOf(semana))
+            cursorExiste.moveToFirst()
+            val yaExiste = cursorExiste.getInt(0) > 0
+            cursorExiste.close()
+
+            if (!yaExiste) {
+                val datosCategoria = obtenerMinutosPorCategoriaEnSemana(semana)
+                val categoriasTodas = obtenerCategorias()
+
+                for (categoria in categoriasTodas) {
+                    val minutos = datosCategoria[categoria.nombre] ?: 0
+                    if (minutos > 0) {
+                        val horas = minutos / 60.0
+                        val porcentaje = (minutos / 10080.0) * 100.0
+
+                        val values = ContentValues().apply {
+                            put(DatabaseHelper.COLUMN_REPORT_WEEK, semana)
+                            put(DatabaseHelper.COLUMN_REPORT_CATEGORY_ID, categoria.id)
+                            put(DatabaseHelper.COLUMN_REPORT_HOURS, horas)
+                            put(DatabaseHelper.COLUMN_REPORT_PERCENTAGE, porcentaje)
+                        }
+                        db.insertWithOnConflict(DatabaseHelper.TABLE_REPORTS, null, values, SQLiteDatabase.CONFLICT_IGNORE)
+                    }
+                }
+            }
+        }
+    }
+
+    // HU-08: Obtener la lista de semanas con reporte para el Spinner
+    fun obtenerSemanasConReportes(): List<String> {
+        val lista = mutableListOf<String>()
+        val db = dbHelper.readableDatabase
+        // ORDER BY DESC para mostrar de la más reciente a la más antigua
+        val query = "SELECT DISTINCT ${DatabaseHelper.COLUMN_REPORT_WEEK} FROM ${DatabaseHelper.TABLE_REPORTS} ORDER BY ${DatabaseHelper.COLUMN_REPORT_ID} DESC"
+        val cursor = db.rawQuery(query, null)
+        if (cursor.moveToFirst()) {
+            do {
+                lista.add(cursor.getString(0))
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return lista
+    }
+
+    // HU-08: Traer las estadísticas de una semana específica
+    fun obtenerReporteDeSemana(semana: String): List<FilaReporte> {
+        val lista = mutableListOf<FilaReporte>()
+        val db = dbHelper.readableDatabase
+        val query = """
+            SELECT c.${DatabaseHelper.COLUMN_CATEGORY_NAME}, r.${DatabaseHelper.COLUMN_REPORT_HOURS}, r.${DatabaseHelper.COLUMN_REPORT_PERCENTAGE}
+            FROM ${DatabaseHelper.TABLE_REPORTS} r
+            INNER JOIN ${DatabaseHelper.TABLE_CATEGORIES} c ON r.${DatabaseHelper.COLUMN_REPORT_CATEGORY_ID} = c.${DatabaseHelper.COLUMN_CATEGORY_ID}
+            WHERE r.${DatabaseHelper.COLUMN_REPORT_WEEK} = ?
+        """.trimIndent()
+
+        val cursor = db.rawQuery(query, arrayOf(semana))
+        if (cursor.moveToFirst()) {
+            do {
+                lista.add(FilaReporte(cursor.getString(0), cursor.getDouble(1), cursor.getDouble(2)))
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return lista
+    }
+
+    // HU-08: Traer el historial de eventos que pertenecen solo a esa semana
+    fun obtenerEventosPorSemanaExacta(semana: String): List<String> {
+        val lista = mutableListOf<String>()
+        val db = dbHelper.readableDatabase
+        val query = """
+            SELECT t.${DatabaseHelper.COLUMN_TASK_NAME}, c.${DatabaseHelper.COLUMN_CATEGORY_NAME},
+                   e.${DatabaseHelper.COLUMN_EVENT_START}, e.${DatabaseHelper.COLUMN_EVENT_END}, e.${DatabaseHelper.COLUMN_EVENT_DURATION}
+            FROM ${DatabaseHelper.TABLE_EVENTS} e
+            INNER JOIN ${DatabaseHelper.TABLE_TASKS} t ON e.${DatabaseHelper.COLUMN_EVENT_TASK_ID} = t.${DatabaseHelper.COLUMN_TASK_ID}
+            INNER JOIN ${DatabaseHelper.TABLE_CATEGORIES} c ON t.${DatabaseHelper.COLUMN_TASK_CATEGORY_ID} = c.${DatabaseHelper.COLUMN_CATEGORY_ID}
+            WHERE e.${DatabaseHelper.COLUMN_EVENT_WEEK} = ? AND e.${DatabaseHelper.COLUMN_EVENT_END} IS NOT NULL
+            ORDER BY e.${DatabaseHelper.COLUMN_EVENT_ID} DESC
+        """.trimIndent()
+
+        val cursor = db.rawQuery(query, arrayOf(semana))
+        if (cursor.moveToFirst()) {
+            do {
+                val tarea = cursor.getString(0)
+                val categoria = cursor.getString(1)
+                val inicio = cursor.getString(2)
+                val fin = cursor.getString(3)
+                val dur = cursor.getString(4)
+                lista.add("$tarea ($categoria)\n▶ $inicio  |  ⏹ $fin\n⏱ Duración: $dur")
+            } while (cursor.moveToNext())
+        }
+        cursor.close()
+        return lista
     }
 }

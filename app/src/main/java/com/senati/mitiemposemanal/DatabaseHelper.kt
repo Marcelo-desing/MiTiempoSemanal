@@ -9,8 +9,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "MiTiempoSemanal.db"
-        // ¡Subimos la versión a 4 para el Sprint 3!
-        private const val DATABASE_VERSION = 4
+        // ¡Subimos la versión a 5 para el Sprint 4 (versión 1.0.0)!
+        private const val DATABASE_VERSION = 5
 
         const val TABLE_CATEGORIES = "categorias"
         const val COLUMN_CATEGORY_ID = "id"
@@ -30,9 +30,16 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val COLUMN_EVENT_START = "inicio"
         const val COLUMN_EVENT_END = "fin"
         const val COLUMN_EVENT_DURATION = "duracion"
-        // NUEVAS COLUMNAS PARA EL SPRINT 3
         const val COLUMN_EVENT_WEEK = "semana"
         const val COLUMN_EVENT_DURATION_MINS = "duracion_minutos"
+
+        // NUEVA TABLA: Reportes (Sprint 4)
+        const val TABLE_REPORTS = "reportes"
+        const val COLUMN_REPORT_ID = "id"
+        const val COLUMN_REPORT_WEEK = "semana"
+        const val COLUMN_REPORT_CATEGORY_ID = "categoria_id"
+        const val COLUMN_REPORT_HOURS = "horas"
+        const val COLUMN_REPORT_PERCENTAGE = "porcentaje"
     }
 
     override fun onConfigure(db: SQLiteDatabase) {
@@ -57,6 +64,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.execSQL(createTasksTable)
 
         crearTablaEventos(db)
+        crearTablaReportes(db)
         insertarCategoriasPorDefecto(db)
     }
 
@@ -73,6 +81,19 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.execSQL(createEventsTable)
     }
 
+    private fun crearTablaReportes(db: SQLiteDatabase) {
+        // Exigencia de la rúbrica: UNIQUE(semana, categoria_id) para evitar duplicados
+        val createReportsTable = ("CREATE TABLE IF NOT EXISTS $TABLE_REPORTS ("
+                + "$COLUMN_REPORT_ID INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "$COLUMN_REPORT_WEEK TEXT NOT NULL, "
+                + "$COLUMN_REPORT_CATEGORY_ID INTEGER NOT NULL, "
+                + "$COLUMN_REPORT_HOURS REAL NOT NULL, "
+                + "$COLUMN_REPORT_PERCENTAGE REAL NOT NULL, "
+                + "FOREIGN KEY($COLUMN_REPORT_CATEGORY_ID) REFERENCES $TABLE_CATEGORIES($COLUMN_CATEGORY_ID), "
+                + "UNIQUE($COLUMN_REPORT_WEEK, $COLUMN_REPORT_CATEGORY_ID) ON CONFLICT IGNORE)")
+        db.execSQL(createReportsTable)
+    }
+
     private fun insertarCategoriasPorDefecto(db: SQLiteDatabase) {
         val categoriasDefecto = arrayOf("Estudio", "Trabajo", "Descanso", "Ocio")
         for (categoria in categoriasDefecto) {
@@ -83,13 +104,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 3) {
-            crearTablaEventos(db)
-        }
+        if (oldVersion < 3) crearTablaEventos(db)
         if (oldVersion < 4) {
-            // Migración: Agregamos las dos columnas nuevas a la tabla existente
             db.execSQL("ALTER TABLE $TABLE_EVENTS ADD COLUMN $COLUMN_EVENT_WEEK TEXT")
             db.execSQL("ALTER TABLE $TABLE_EVENTS ADD COLUMN $COLUMN_EVENT_DURATION_MINS INTEGER DEFAULT 0")
+        }
+        if (oldVersion < 5) {
+            crearTablaReportes(db)
         }
     }
 }
